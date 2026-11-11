@@ -1,0 +1,9 @@
+# Original Switch Stories artwork and production sources stay local (same rules the main site used).
+**/source/
+**/incoming/
+**/reference/
+**/art/
+*.pdf
+node_modules/
+Thumbs.db
+desktop.ini
