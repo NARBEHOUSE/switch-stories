@@ -62,6 +62,9 @@ NSS.Input = (function () {
      */
     function say(text) {
         if (inStory() && (NSS.Story.isReading() || !NSS.Settings.is('readAloud', 'on'))) return null;
+        if (NSS.UI.current() === 'library' && focused && focused.description && text === focused.speak) {
+            return NSS.Voice.summary(text, focused.description);
+        }
         return NSS.Voice.speak(text);
     }
 

@@ -4,14 +4,15 @@
  * The cover opens and is read straight away. Then each page:
  *   the words are read aloud, then the character glows with a soft chime:
  *   it is the player's turn, and their press makes the action happen; then
- *   a press turns the page. (The player always presses: there is no
- *   "plays by itself" or "turns by itself", by the user's choice.)
+ *   a press turns the page. Every book continues spoken text passages on
+ *   the same picture. Physical pages always wait for the player's press.
  *   Optional image descriptions come before the first passage and after the
  *   action. Each description passage waits for a fresh press. They use the
  *   same Read Aloud preference and cancellation as the story narration.
  *
  * A press while the words are read gets a soft tick, and the words are
- * read to the end (they are never cut off). A press during the action is
+ * read to the end unless Quick Page Turn is on. That option interrupts
+ * the current passage and starts the next one. A press during the action is
  * remembered unless the story requires a fresh press after the action.
  *
  * After The End, the story goes back to its cover with two choices: Read
@@ -48,6 +49,7 @@ NSS.Story = (function () {
     let outroT = 0, outroSeconds = 0;
     let acted = false, turnQueued = false, swapped = false, ending = false;
     let afterSoundTimer = null;
+    let promptTimer = null;
     const counts = { presses: 0, actions: 0, turns: 0, ticks: 0, afterSounds: 0 };
 
     function S() { return NSS.Settings; }
@@ -65,6 +67,7 @@ NSS.Story = (function () {
     function isDescription() { return state === 'describing' || state === 'descriptionReady'; }
 
     function clearPageSounds() {
+        clearPrompt();
         clearTimeout(afterSoundTimer);
         afterSoundTimer = null;
         const currentPage = story && page();
@@ -77,6 +80,12 @@ NSS.Story = (function () {
     // --- what is on screen ------------------------------------------------------------
 
     function hint() {
+        if (S().is('quickPageTurn', 'on') && state !== 'turning' && state !== 'end' && state !== 'acting') {
+            if (isDescription()) return descriptionHint();
+            if (!acted && hasMoreText()) return 'Press to keep reading';
+            if (!acted && page().action !== 'none') return 'Press to see what happens';
+            return isLast() ? 'Press to finish' : 'Press to turn the page';
+        }
         if (state === 'idle') return 'Press to start';
         if (state === 'waiting') return 'Press to see what happens';
         if (state === 'descriptionReady') return descriptionHint();
@@ -91,8 +100,32 @@ NSS.Story = (function () {
     }
 
     function setState(s) {
+        clearPrompt();
         state = s;
         NSS.UI.setHint(hint());
+    }
+
+    function clearPrompt() {
+        clearTimeout(promptTimer);
+        promptTimer = null;
+    }
+
+    // Directions are story speech, even when menu speech is off or the player
+    // uses Hold Enter. Keep the page ready so a press can interrupt the prompt.
+    function speakPrompt(delay = 0) {
+        clearPrompt();
+        if (!story || !S().is('readAloud', 'on') || !S().is('storyPrompts', 'on') ||
+            !['waiting', 'done', 'descriptionReady'].includes(state) || NSS.UI.current() !== 'story') return;
+        const currentPage = page(), currentState = state, text = hint();
+        if (!text) return;
+        const speak = function () {
+            promptTimer = null;
+            if (!story || page() !== currentPage || state !== currentState || NSS.UI.current() !== 'story' ||
+                !S().is('readAloud', 'on') || !S().is('storyPrompts', 'on')) return;
+            NSS.Reader.read({ text: text + '.' }, function () {});
+        };
+        if (delay > 0) promptTimer = setTimeout(speak, delay);
+        else speak();
     }
 
     /** Put this page's words up, and get its sounds ready (and the next page's). */
@@ -127,6 +160,8 @@ NSS.Story = (function () {
         NSS.UI.setWords(readingText(), captionParts());
         showPageNumber();
         setState('reading');
+        // Silent readers of a continuous book choose their own pace immediately.
+        if (story.autoReadParts && !S().is('readAloud', 'on')) { afterReading(); return; }
         NSS.Reader.read({ text: readingText() }, afterReading);
     }
 
@@ -135,9 +170,11 @@ NSS.Story = (function () {
         NSS.UI.setPageNo((index ? index + ' of ' + (story.pages.length - 1) : 'Cover') +
             (descriptionKind === 'before' ? ' · Image description' : ' · What happened'));
         setState('describing');
-        // A listener should hear when to press even with Speak Menus disabled.
-        // Reader still obeys Read Aloud, including its completely silent mode.
-        const spoken = descriptionParts[descriptionIndex] + (S().is('readAloud', 'on') ? ' ' + descriptionHint() + '.' : '');
+        // The optional direction uses the same preference as the scanned story
+        // button. The description itself still follows Read Aloud independently.
+        const prompt = S().is('quickPageTurn', 'on') ? hint() : descriptionHint();
+        const spoken = descriptionParts[descriptionIndex] +
+            (S().is('readAloud', 'on') && S().is('storyPrompts', 'on') ? ' ' + prompt + '.' : '');
         NSS.Reader.read({ text: spoken }, function () {
             if (state === 'describing') setState('descriptionReady');
         });
@@ -156,6 +193,12 @@ NSS.Story = (function () {
         readDescription();
     }
 
+    function continueDescription() {
+        if (descriptionIndex < descriptionParts.length - 1) { descriptionIndex++; readDescription(); }
+        else if (descriptionKind === 'before') readCurrent();
+        else turnPage();
+    }
+
     // --- the flow ---------------------------------------------------------------------
 
     function beginPage() {
@@ -167,9 +210,13 @@ NSS.Story = (function () {
 
     function afterReading() {
         if (state !== 'reading') return;
-        if (hasMoreText()) setState('done');
-        else if (page().action === 'none') startAction();
+        if (hasMoreText()) {
+            if (story.autoReadParts && S().is('readAloud', 'on')) { continueReading(); return; }
+            setState('done');
+        }
+        else if (page().action === 'none') { startAction(); return; }
         else { setState('waiting'); NSS.Sound.play('ready'); }
+        speakPrompt(state === 'waiting' ? AFTER_SOUND_DELAY : 0);
     }
 
     function startAction() {
@@ -198,11 +245,19 @@ NSS.Story = (function () {
             clearTimeout(afterSoundTimer);
             afterSoundTimer = setTimeout(function () {
                 afterSoundTimer = null;
-                if (story && page() === p) { NSS.Sound.after(p); counts.afterSounds++; }
+                if (story && page() === p) {
+                    const duration = NSS.Sound.after(p) || 0;
+                    counts.afterSounds++;
+                    speakPrompt(duration * 1000);
+                }
             }, AFTER_SOUND_DELAY);
         }
         setState('done');
-        if (turnQueued) { turnQueued = false; turnPage(); }
+        if (turnQueued) {
+            turnQueued = false;
+            if (!S().is('quickPageTurn', 'on')) turnPage();
+        }
+        if (state === 'done' && !page().afterSound) speakPrompt();
     }
 
     function turnPage() {
@@ -253,15 +308,31 @@ NSS.Story = (function () {
         // Switch bounce is filtered by the shared input guard. A second local
         // cooldown would discard valid taps at the user's saved sensitivity.
         counts.presses++;
+        // Helper browsing interrupts only the current passage. Start speaking
+        // each next passage, then play the full action before a fresh turn press.
+        if (S().is('quickPageTurn', 'on') && state !== 'turning' && state !== 'end') {
+            turnQueued = false;
+            if (state === 'acting') { tickSound(); return; }
+            if (state === 'idle') beginPage();
+            else if (isDescription()) {
+                NSS.Reader.stop();
+                continueDescription();
+            } else if (state === 'actionOutro') {
+                clearPageSounds();
+                describe('after');
+            } else if (!acted && hasMoreText()) continueReading();
+            else if (!acted && page().action !== 'none') {
+                startAction();
+            } else turnPage();
+            return;
+        }
         switch (state) {
             case 'idle': beginPage(); break;
             case 'reading': tickSound(); break;                         // the words are always read to the end
             case 'describing': tickSound(); break;
             case 'actionOutro': tickSound(); break;
             case 'descriptionReady':
-                if (descriptionIndex < descriptionParts.length - 1) { descriptionIndex++; readDescription(); }
-                else if (descriptionKind === 'before') readCurrent();
-                else turnPage();
+                continueDescription();
                 break;
             case 'waiting': startAction(); break;
             case 'acting':
@@ -323,6 +394,7 @@ NSS.Story = (function () {
         if (state === 'reading') readCurrent();
         else if (state === 'describing') readDescription();
         else if (state === 'actionOutro') describe('after');
+        else speakPrompt();
     }
 
     /** Start Over: back to the cover, read straight away. */
@@ -344,6 +416,16 @@ NSS.Story = (function () {
     }
 
     function settingChanged(key) {
+        // Enabling narration while paused on silent text starts that same group
+        // on Continue; it does not speak over Settings or skip unread words.
+        if (story && story.autoReadParts && key === 'readAloud' &&
+            S().is('readAloud', 'on') && state === 'done') setState('reading');
+        if (story && (key === 'storyPrompts' || key === 'readAloud') &&
+            ['waiting', 'done', 'descriptionReady'].includes(state)) {
+            clearPrompt();
+            NSS.Reader.stop();
+            speakPrompt();
+        }
         if (story && key === 'imageDescriptions' && !descriptionsOn() && state === 'actionOutro') {
             clearPageSounds(); setState('done');
         }

@@ -141,6 +141,30 @@ NSS.Illustrations = (function () {
         return object;
     }
 
+    // Optional per-actor windows let one action finish before the next begins.
+    // Existing books without windows retain their original page progress.
+    function layerProgress(layer, p) {
+        return layer.sequence ? clamp((p - layer.sequence[0]) / (layer.sequence[1] - layer.sequence[0]), 0, 1) : p;
+    }
+
+    function contrastScene(spec, imageFor, story, area) {
+        const box = { left: Infinity, right: -Infinity, top: Infinity, bottom: -Infinity };
+        spec.layers.filter(l => !l.bookOnly).forEach(l => {
+            const images = [l.object].concat(l.poses.map(f => f.object)).map(o => imageFor(story.objects[o])).filter(Boolean);
+            const halfWidth = Math.max(...images.map(i => i.width / i.height)) * l.height / 2;
+            const travel = l.motion === 'walk' ? l.travel * 2 : 0;
+            box.left = Math.min(box.left, l.x * 2 + Math.min(0, travel) - halfWidth);
+            box.right = Math.max(box.right, l.x * 2 + Math.max(0, travel) + halfWidth);
+            box.top = Math.min(box.top, l.bottom - l.height * (l.foot + 0.03));
+            box.bottom = Math.max(box.bottom, l.bottom + l.height * (1 - l.foot));
+        });
+        if (spec.cviBounds) [box.left, box.top, box.right, box.bottom] = spec.cviBounds;
+        const k = Math.min(area.w / (box.right - box.left), area.h / (box.bottom - box.top)) *
+            (NSS.Settings.is('characterSize', 'large') ? 0.94 : 0.66);
+        return { x: area.x + area.w / 2 - (box.left + box.right) / 2 * k,
+            y: area.y + area.h / 2 - (box.top + box.bottom) / 2 * k, w: k * 2, h: k };
+    }
+
     function drawShoreline(ctx, img, spec, frame, p, w, h) {
         if (!img || spec.mask.length < 3) return;
         const key = img.src + JSON.stringify(spec.mask);
@@ -262,7 +286,10 @@ NSS.Illustrations = (function () {
             y: frame.y, w: frame.w * 32 / 54 / coreSpan, h: frame.h } : frame;
         const p = clamp(Number(st.p) || 0, 0, 1), active = st.state === 'acting';
         const action = page.action, u = ease(p);
-        const main = (cvi && spec.layers.find(l => l.cviActive)) || spec.layers.find(l => l.active) || spec.layers[0];
+        const sequenced = spec.layers.filter(l => l.active && l.sequence).sort((a, b) => a.sequence[0] - b.sequence[0]);
+        const current = sequenced.filter(l => p >= l.sequence[0]).pop() || sequenced[0];
+        const main = (cvi && spec.layers.find(l => l.cviActive)) || current || spec.layers.find(l => l.active) || spec.layers[0];
+        const groupFrame = cvi && spec.cviScene ? contrastScene(spec, imageFor, page.story, area) : null;
         ctx.save();
         ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
         if (cvi) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, fullH); }
@@ -279,9 +306,11 @@ NSS.Illustrations = (function () {
         if (!cvi && action === 'protect' && p > 0)
             waterAround(ctx, actionFrame, p);
         let mainD = 100;
-        const layers = cvi ? [main] : spec.layers.filter(layer => !layer.contrastOnly);
+        let closeUpOrigin = null;
+        const layers = cvi ? (groupFrame ? spec.layers.filter(l => !l.bookOnly) : [main]) : spec.layers.filter(layer => !layer.contrastOnly);
         layers.forEach(layer => {
-            const img = imageFor(page.story.objects[poseObject(layer, p, cvi)]) || imageFor(page.story.objects[layer.object]);
+            const q = layerProgress(layer, p);
+            const img = imageFor(page.story.objects[poseObject(layer, q, cvi)]) || imageFor(page.story.objects[layer.object]);
             if (!img) return;
             const ratio = img.width / img.height;
             let d, x, bottom;
@@ -289,10 +318,14 @@ NSS.Illustrations = (function () {
                 // A static library tile needs no spare space for travel.
                 d = Math.min(area.h, area.w / ratio) * 0.98;
                 x = area.x + area.w / 2; bottom = area.y + area.h / 2 + d * 0.46;
+            } else if (groupFrame) {
+                d = groupFrame.h * layer.height;
+                x = groupFrame.x + groupFrame.w * layer.x;
+                bottom = groupFrame.y + groupFrame.h * layer.bottom;
             } else if (cvi) {
                 // Fit the WHOLE motion first, then make Regular/Large distinct.
                 const fit = Math.min(area.h / (layer.motion === 'hop' ? 1.40 : 1.20),
-                    area.w / (ratio + (layer.motion === 'fly' ? 0.65 : 0.30)));
+                    area.w / (ratio + (layer.motion === 'walk' ? 0.85 : layer.motion === 'fly' ? 0.65 : 0.30)));
                 d = fit * (NSS.Settings.is('characterSize', 'large') ? 0.94 : 0.56);
                 x = area.x + area.w / 2; bottom = area.y + area.h / 2 + d * 0.46;
                 // Center the full jump, including its upward travel, so a
@@ -307,13 +340,22 @@ NSS.Illustrations = (function () {
             const landingBottom = bottom;
             let rotation = 0;
             if (layer.motion === 'hop') {
-                bottom -= Math.abs(Math.sin(p * Math.PI * 2)) * d * 0.30;
+                bottom -= Math.abs(Math.sin(q * Math.PI * 2)) * d * 0.30;
+            } else if (layer.motion === 'walk') {
+                x += groupFrame ? groupFrame.w * layer.travel * ease(q) :
+                    cvi ? (ease(q) - 0.5) * d * 0.65 * Math.sign(layer.travel) : frame.w * layer.travel * ease(q);
+                bottom -= Math.abs(Math.sin(q * Math.PI * 4)) * d * 0.015;
+            } else if (layer.motion === 'rumble') {
+                x += Math.sin(q * Math.PI * 4) * d * 0.07;
+                d *= 1 + Math.pow(Math.sin(q * Math.PI * 2), 2) * 0.12;
             } else if (layer.motion === 'fly') {
                 x += cvi ? (u - 0.5) * d * 0.58 : frame.w * layer.travel * u;
                 bottom -= Math.sin(p * Math.PI) * d * 0.12;
             } else if (layer.motion === 'sunset') {
                 bottom += cvi ? d * (u - 0.5) * 0.16 : frame.h * layer.drop * u;
             }
+            if (spec.closeUp && spec.layers[spec.closeUp.layer] === layer)
+                closeUpOrigin = { x: x + d * spec.closeUp.x, y: bottom + d * spec.closeUp.y, h: d * spec.closeUp.height };
             if (isMain) {
                 mainD = d;
                 if (action === 'drive' && !st.cover) {
@@ -341,7 +383,7 @@ NSS.Illustrations = (function () {
                 ctx.beginPath(); ctx.rect(frame.x, frame.y, frame.w, frame.h * 0.40); ctx.clip();
             }
             ctx.translate(x, bottom); ctx.rotate(rotation);
-            ctx.drawImage(img, -d * ratio / 2, -d * (cvi ? 0.96 : layer.foot), d * ratio, d);
+            ctx.drawImage(img, -d * ratio / 2, -d * (cvi && !groupFrame ? 0.96 : layer.foot), d * ratio, d);
             ctx.restore();
             if (!cvi && layer.motion === 'hop' && p > 0) {
                 const landing = Math.max(0, 1 - Math.abs(Math.sin(p * Math.PI * 2)) * 4);
@@ -352,6 +394,22 @@ NSS.Illustrations = (function () {
             }
             if (isMain && active && action === 'dig') sandFromShovel(ctx, x, bottom, d, p);
         });
+        // Enlarge only the finished picture, leaving the page, controls and
+        // story state intact. Keep it centered and fully inside the safe area.
+        if (spec.closeUp && closeUpOrigin && p >= spec.closeUp.start && !st.cover) {
+            const close = spec.closeUp, img = imageFor(page.story.objects[close.object]);
+            if (img) {
+                const t = ease(clamp((p - close.start) / (close.end - close.start), 0, 1));
+                const ratio = img.width / img.height;
+                const targetH = Math.min(area.h * 0.88, area.w * 0.9 / ratio);
+                const h = closeUpOrigin.h + (targetH - closeUpOrigin.h) * t;
+                const x = closeUpOrigin.x + (area.x + area.w / 2 - closeUpOrigin.x) * t;
+                const y = closeUpOrigin.y + (area.y + area.h / 2 - closeUpOrigin.y) * t;
+                ctx.save(); ctx.globalAlpha = t * (cvi ? 1 : 0.7);
+                ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, pictureH); ctx.restore();
+                ctx.drawImage(img, x - h * ratio / 2, y - h / 2, h * ratio, h);
+            }
+        }
         ctx.restore();
         return { s: mainD / 300 };
     }

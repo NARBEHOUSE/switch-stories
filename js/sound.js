@@ -239,11 +239,71 @@ NSS.Sound = (function () {
 NSS.Voice = (function () {
     'use strict';
     function vm() { return window.NarbeVoiceManager; }
+    let activeSummary = null;
+    function on() { try { return !!vm().getSettings().ttsEnabled; } catch (e) { return false; } }
+    function stopSummary() { if (activeSummary) activeSummary.cancel(); }
+    function speak(text, options) {
+        // Books already read use the past-tense pronunciation. Spell the name
+        // Max phonetically so voices do not expand "Max." to "maximum".
+        // "Just learned" uses the one-syllable past tense, not "learn-ed".
+        const spoken = text && text.replace(/\bmost read\b/gi, 'Most red')
+            .replace(/\brecently read\b/gi, 'Recently red')
+            .replace(/\bMax\b/g, 'Macks')
+            .replace(/\b(just )learned\b/gi, '$1lurned');
+        try { return spoken && vm() ? vm().speak(spoken, options) : null; } catch (e) { return null; }
+    }
+
+    /** One cancellable scan label: title, one second of silence, description.
+     * Its completion includes both utterances, so Wait for Speech keeps working.
+     * A new label, leaving the library, or switching speech off cancels the gap too.
+     */
+    function summary(title, description) {
+        stopSummary();
+        let current = null, timer = null, done = false, started = false, resolve;
+        const ticket = {
+            finished: new Promise(finish => { resolve = finish; }),
+            cancel: function () {
+                if (done) return;
+                finish({ reason: 'cancelled', started: started });
+                if (current && current.cancel) current.cancel();
+            }
+        };
+        function finish(result) {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            if (activeSummary === ticket) activeSummary = null;
+            resolve(result || { reason: 'error', started: started });
+        }
+        activeSummary = ticket;
+        current = speak(title);
+        ticket.started = current && current.started || Promise.resolve(false);
+        Promise.resolve(ticket.started).then(value => { started = !!value; }, () => {});
+        Promise.resolve(current && current.finished).then(result => {
+            if (done) return;
+            started = started || !!(result && result.started);
+            // A timeout may leave native speech running: never interrupt it to
+            // start a description. Failed/disabled speech releases the scan.
+            if (!result || result.reason !== 'end' || !description || !on()) { finish(result); return; }
+            timer = setTimeout(function () {
+                if (done) return;
+                if (!on()) { finish({ reason: 'disabled', started: started }); return; }
+                current = speak(description);
+                Promise.resolve(current && current.finished).then(finish, () => finish());
+            }, 1000);
+        }, () => finish());
+        return ticket;
+    }
+    try {
+        vm().onSettingsChange(function (settings) { if (!settings.ttsEnabled) stopSummary(); });
+    } catch (e) { /* Speech can be unavailable in a standalone browser. */ }
     return {
         speak: function (text, options) {
-            try { return text && vm() ? vm().speak(text, options) : null; } catch (e) { return null; }
+            stopSummary();
+            return speak(text, options);
         },
-        cancel: function () { try { vm() && vm().cancel(); } catch (e) { /* no voice manager */ } },
-        on: function () { try { return !!vm().getSettings().ttsEnabled; } catch (e) { return false; } }
+        summary: summary,
+        cancel: function () { stopSummary(); try { vm() && vm().cancel(); } catch (e) { /* no voice manager */ } },
+        on: on
     };
 })();

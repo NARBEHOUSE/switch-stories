@@ -185,7 +185,10 @@ NSS.Library = (function () {
             height: clampNum(Number(l.height) || 0.4, 0.04, 1),
             foot: clampNum(Number(l.foot) || 0.96, 0.8, 1),
             grounded: !!l.grounded, active: !!l.active, cviActive: !!l.cviActive, contrastOnly: !!l.contrastOnly,
-            motion: ['hop', 'fly', 'sunset'].includes(l.motion) ? l.motion : '',
+            motion: ['hop', 'fly', 'sunset', 'walk', 'rumble'].includes(l.motion) ? l.motion : '',
+            ...(Array.isArray(l.sequence) && l.sequence.length === 2 && l.sequence.every(Number.isFinite) &&
+                l.sequence[0] >= 0 && l.sequence[1] <= 1 && l.sequence[0] < l.sequence[1] ? { sequence: l.sequence.slice() } : {}),
+            ...(l.bookOnly ? { bookOnly: true } : {}),
             poses: poses(l.poses), cviPoses: poses(l.cviPoses),
             travel: Number.isFinite(l.travel) ? clampNum(l.travel, -0.7, 0.7) : 0,
             drop: Number.isFinite(l.drop) ? clampNum(l.drop, -0.3, 0.3) : 0
@@ -206,7 +209,18 @@ NSS.Library = (function () {
             focus: Array.isArray(focus) && focus.length === 4 && focus.every(Number.isFinite) &&
                 focus[0] < focus[2] && focus[1] < focus[3] ? focus.map(n => clampNum(n, 0, 1)) : [0, 0, 1, 1],
             colors: (raw.colors || []).slice(0, 3).map(c => color(c, '#fff2d2')),
-            cover: !!raw.cover
+            cover: !!raw.cover,
+            ...(raw.cviScene ? { cviScene: true } : {}),
+            ...(Array.isArray(raw.cviBounds) && raw.cviBounds.length === 4 && raw.cviBounds.every(Number.isFinite) &&
+                raw.cviBounds[0] < raw.cviBounds[2] && raw.cviBounds[1] < raw.cviBounds[3] ? { cviBounds: raw.cviBounds.slice() } : {}),
+            ...(raw.closeUp && objects[raw.closeUp.object] && Number.isInteger(raw.closeUp.layer) &&
+                raw.closeUp.layer >= 0 && raw.closeUp.layer < layers.length
+                ? { closeUp: { object: raw.closeUp.object, layer: raw.closeUp.layer,
+                    start: clampNum(Number(raw.closeUp.start) || 0.4, 0.1, 0.8),
+                    end: clampNum(Number(raw.closeUp.end) || 0.85, 0.81, 1),
+                    x: clampNum(Number(raw.closeUp.x) || 0, -0.5, 0.5),
+                    y: clampNum(Number(raw.closeUp.y) || -0.4, -1, 0),
+                    height: clampNum(Number(raw.closeUp.height) || 0.3, 0.05, 0.6) } } : {})
         };
     }
 
@@ -404,9 +418,13 @@ NSS.Library = (function () {
             availableOn: releaseDate(def.availableOn),
             readingTag: plainText(def.readingTag),
             storyType: ['original', 'adapted'].includes(def.storyType) ? def.storyType : '',
-            tags: storyTags((Array.isArray(def.tags) ? def.tags : []).concat(def.readingTag)),
+            tags: storyTags((Array.isArray(def.tags) ? def.tags : []).concat(def.readingTag,
+                pages.some(p => p.action !== 'none') ? 'Animations' : 'No animations')),
             pageCount: pages.length,
             requireFreshTurn: def.requireFreshTurn === true,
+            // Every book continues spoken passages on the same picture.
+            // Silent passages, actions and physical pages still wait for a press.
+            autoReadParts: true,
             base: base,
             credits: normalizeCredits(def.credits),
             poses: poses,

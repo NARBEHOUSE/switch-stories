@@ -1,7 +1,7 @@
 /* Switch Stories
    The story fills the whole window: the picture on a canvas, the words in a
-   big box along the bottom. Every menu is a plain, dark card scaled to fit
-   (see fit() in ui.js) so nothing is cut off and nothing scrolls. Plain and
+   big box along the bottom. Settings menus scale to fit; the library keeps
+   full descriptions and tags readable and scrolls with the highlight. Plain and
    calm on purpose, as in Glow Pop: big white text, few colours and no busy
    animation, for players with CVI. */
 
@@ -38,7 +38,7 @@ body {
 
 #nss { position: fixed; inset: 0; background: #05060f; }
 
-/* The story picture shows only while a story is open (and behind its pause menu). */
+/* An open story keeps its paused picture behind Pause and all its menus. */
 .nss-stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; visibility: hidden; }
 #nss.story-open .nss-stage { visibility: visible; }
 
@@ -113,15 +113,16 @@ body {
     margin-top: 4px;
 }
 
-/* The menus' picture (Picture Book look only), behind the library, Settings
-   and How to Play. The picture holds still; only a few fireflies rise and
-   fade, gently, never flashing. Simple High Contrast menus are plain black. */
+/* The library picture also appears in Settings and How to Play when no story
+   is open. During a story, keep that page behind every menu. The picture holds
+   still; only the library's fireflies move. Simple High Contrast library menus
+   are plain black. */
 .nss-menu-bg { position: fixed; inset: 0; overflow: hidden; display: none; pointer-events: none; }
-#nss:not(.cvi)[data-screen="library"] .nss-menu-bg.ready,
-#nss:not(.cvi)[data-screen="filters"] .nss-menu-bg.ready,
-#nss:not(.cvi)[data-screen="lengths"] .nss-menu-bg.ready,
-#nss:not(.cvi)[data-screen="settings"] .nss-menu-bg.ready,
-#nss:not(.cvi)[data-screen="help"] .nss-menu-bg.ready { display: block; }
+#nss:not(.story-open):not(.cvi)[data-screen="library"] .nss-menu-bg.ready,
+#nss:not(.story-open):not(.cvi)[data-screen="filters"] .nss-menu-bg.ready,
+#nss:not(.story-open):not(.cvi)[data-screen="lengths"] .nss-menu-bg.ready,
+#nss:not(.story-open):not(.cvi)[data-screen="settings"] .nss-menu-bg.ready,
+#nss:not(.story-open):not(.cvi)[data-screen="help"] .nss-menu-bg.ready { display: block; }
 .nss-menu-pic {
     position: absolute;
     inset: 0;
@@ -161,26 +162,27 @@ body {
 /* Over the picture, these menus have only a light wash, and their cards let a
    little of the forest show through. The tiles, rows and buttons on them stay
    solid, so their words read just as clearly. */
-#nss:not(.cvi)[data-screen="library"] .nss-screen.show,
-#nss:not(.cvi)[data-screen="filters"] .nss-screen.show,
-#nss:not(.cvi)[data-screen="lengths"] .nss-screen.show,
-#nss:not(.cvi)[data-screen="settings"] .nss-screen.show,
-#nss:not(.cvi)[data-screen="help"] .nss-screen.show { background: rgba(5, 6, 15, 0.15); }
-#nss:not(.cvi)[data-screen="library"] .nss-card,
-#nss:not(.cvi)[data-screen="filters"] .nss-card,
-#nss:not(.cvi)[data-screen="lengths"] .nss-card,
-#nss:not(.cvi)[data-screen="settings"] .nss-card,
-#nss:not(.cvi)[data-screen="help"] .nss-card { background: rgba(8, 10, 26, 0.76); }
+#nss:not(.story-open):not(.cvi)[data-screen="library"] .nss-screen.show,
+#nss:not(.story-open):not(.cvi)[data-screen="filters"] .nss-screen.show,
+#nss:not(.story-open):not(.cvi)[data-screen="lengths"] .nss-screen.show,
+#nss:not(.story-open):not(.cvi)[data-screen="settings"] .nss-screen.show,
+#nss:not(.story-open):not(.cvi)[data-screen="help"] .nss-screen.show { background: rgba(5, 6, 15, 0.15); }
+#nss:not(.story-open):not(.cvi)[data-screen="library"] .nss-card,
+#nss:not(.story-open):not(.cvi)[data-screen="filters"] .nss-card,
+#nss:not(.story-open):not(.cvi)[data-screen="lengths"] .nss-card,
+#nss:not(.story-open):not(.cvi)[data-screen="settings"] .nss-card,
+#nss:not(.story-open):not(.cvi)[data-screen="help"] .nss-card { background: rgba(8, 10, 26, 0.76); }
 #nss:not(.cvi) .nss-card .nss-sub,
 #nss:not(.cvi) .nss-card .nss-title,
 #nss:not(.cvi) .nss-help-body p { text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); }
 #nss:not(.cvi) .nss-card .nss-sub { color: #e4e7fb; }
-/* Simple High Contrast: these menus are plain black, even over a paused story. */
-#nss.cvi[data-screen="library"] .nss-screen.show,
-#nss.cvi[data-screen="filters"] .nss-screen.show,
-#nss.cvi[data-screen="lengths"] .nss-screen.show,
-#nss.cvi[data-screen="settings"] .nss-screen.show,
-#nss.cvi[data-screen="help"] .nss-screen.show { background: #000000; }
+/* Simple High Contrast uses black library menus and the same translucent
+   Pause shade over an open story, so its current characters remain visible. */
+#nss:not(.story-open).cvi[data-screen="library"] .nss-screen.show,
+#nss:not(.story-open).cvi[data-screen="filters"] .nss-screen.show,
+#nss:not(.story-open).cvi[data-screen="lengths"] .nss-screen.show,
+#nss:not(.story-open).cvi[data-screen="settings"] .nss-screen.show,
+#nss:not(.story-open).cvi[data-screen="help"] .nss-screen.show { background: #000000; }
 
 /* An open book on a warm yellow circle. */
 .nss-logo {
@@ -430,6 +432,8 @@ body {
 }
 
 .nss-row-label { font-weight: 800; }
+.nss-row-copy { flex: 1; min-width: 0; }
+.nss-row-note { display: block; margin-top: 6px; font: 500 16px/1.35 'Segoe UI', system-ui, sans-serif; }
 .nss-row-value { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; color: var(--value); text-align: right; }
 .nss-row-nav { justify-content: center; background: #2b3157; box-shadow: inset 0 0 0 3px var(--btn-edge); }
 
@@ -455,6 +459,12 @@ body {
     .nss-settings-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .nss-row-nav { grid-column: 1 / -1; }
     .nss-card-top .nss-settings-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    #nss[data-page="reading"] .nss-card-settings { width: min(720px, 96vw); padding: 12px; }
+    #nss[data-page="reading"] .nss-card-settings h2 { font-size: 26px; margin: 0 0 12px; }
+    #nss[data-page="reading"] .nss-settings-list { gap: 8px; }
+    #nss[data-page="reading"] .nss-row { min-height: 48px; padding: 8px 12px; font-size: 18px; }
+    #nss[data-page="reading"] [data-setting="quickPageTurn"] { grid-column: 1 / -1; }
+    #nss[data-page="reading"] .nss-row-note { font-size: 14px; line-height: 1.3; }
 }
 
 /* -------------------------------------------------------------- how to play */
@@ -552,7 +562,7 @@ body {
     margin-top: 12px;
 }
 .nss-end-choices .nss-menu-item { justify-content: center; }
-.nss-end-choices .nss-menu-label { flex: none; }
+.nss-end-choices .nss-menu-label { flex: 0 1 auto; min-width: 0; }
 .nss-end-choices .nss-menu-item { font-size: calc(24px * var(--display-scale)); padding: calc(14px * var(--display-scale)); }
 .nss-end-choices .nss-icon-chip { scale: var(--display-scale); margin-inline: calc(16px * (var(--display-scale) - 1)); }
 
@@ -684,6 +694,7 @@ body {
     .nss-tile-label { font-size: 19px; }
     .nss-textbox { padding: 14px 16px max(14px, env(safe-area-inset-bottom, 0px)); }
     .nss-end-choices .nss-menu-item { font-size: 17px; padding: 8px 10px; }
+    .nss-textbox.choosing .nss-end-choices { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 620px) {
@@ -771,6 +782,97 @@ body {
     .nss-textbox { padding-top: 10px; padding-bottom: max(8px, env(safe-area-inset-bottom, 0px)); }
     .nss-words { font-size: clamp(28px, 7.2vh, 36px); max-width: none; }
     #nss.xl .nss-words { font-size: clamp(32px, 9vh, 46px); }
+}
+
+/* Full story details: three columns on large displays, two on tablets and
+   one on phones. Scroll the library instead of shrinking or hiding its text. */
+body:has(.nss-screen-library.show) { touch-action: pan-y; }
+.nss-screen-library { align-items: flex-start; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; scrollbar-color: #727ca8 #10152c; }
+.nss-screen-library.nss-library-grid .nss-card-library {
+    width: min(1280px, calc(94vw / var(--display-scale)));
+    padding: 18px; margin-block: auto; zoom: var(--display-scale);
+    transform: none;
+}
+.nss-screen-library.nss-library-grid .nss-library-header { display: flex; align-items: center; gap: 16px; margin: 14px 0; }
+.nss-screen-library.nss-library-grid .nss-brand { display: flex; }
+.nss-screen-library.nss-library-grid .nss-library-filters { flex: 1; margin: 0; }
+.nss-screen-library.nss-library-grid .nss-library-header .nss-sub { flex: 1; margin: 0; font-size: 18px; text-align: right; }
+.nss-screen-library.nss-library-grid .nss-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: auto; gap: 18px; margin-bottom: 18px; }
+.nss-screen-library.nss-library-grid .nss-tile {
+    display: grid; grid-template-columns: 76px minmax(0, 1fr);
+    grid-template-rows: auto 1fr auto; grid-row: auto;
+    align-content: start; align-items: start; gap: 12px; padding: 16px; min-height: 0;
+}
+.nss-screen-library.nss-library-grid .nss-tile .nss-pic { width: 76px; height: 76px; grid-area: 1 / 1; }
+.nss-screen-library.nss-library-grid .nss-tile-copy { display: contents; }
+.nss-screen-library.nss-library-grid .nss-tile-label { grid-area: 1 / 2; align-self: center; font-size: 23px; line-height: 1.15; text-align: left; }
+.nss-screen-library.nss-library-grid .nss-tile-description {
+    display: block; grid-area: 2 / 1 / auto / -1; position: static;
+    width: auto; height: auto; margin: 0; padding: 0; overflow: visible;
+    clip-path: none; white-space: normal; font-size: 16px; line-height: 1.4;
+}
+.nss-screen-library.nss-library-grid .nss-story-tags {
+    display: flex; grid-area: 3 / 1 / auto / -1; position: static;
+    width: auto; height: auto; margin: 0; overflow: visible; clip-path: none;
+    white-space: normal; gap: 6px; align-self: end;
+}
+.nss-screen-library.nss-library-grid .nss-story-tag {
+    position: static; width: auto; height: auto; margin: 0; overflow: visible;
+    clip-path: none; white-space: normal; font-size: 14px; line-height: 1.35; padding: 3px 8px;
+}
+.nss-screen-library .nss-btn { scroll-margin-block: 16px; }
+.nss-library-footer { display: flex; align-items: stretch; gap: 16px; }
+.nss-library-footer .nss-library-paging { flex: 1; }
+.nss-library-footer .nss-util { flex: 3; }
+.nss-library-footer .nss-more { max-width: none; width: 100%; height: 100%; }
+.nss-library-footer .nss-menu-label { flex: 1; min-width: 0; }
+@media (max-width: 1100px) {
+    .nss-screen-library.nss-library-grid .nss-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .nss-screen-library.nss-library-grid .nss-util .nss-icon-chip { display: none; }
+}
+@media (max-width: 620px) {
+    .nss-screen-library.nss-library-grid .nss-card-library { padding: 14px; border-radius: 22px; }
+    .nss-screen-library.nss-library-grid .nss-brand-title { font-size: 30px; }
+    .nss-screen-library.nss-library-grid .nss-logo { width: 40px; height: 40px; }
+    .nss-screen-library.nss-library-grid .nss-library-intro { font-size: 15px; margin: 12px auto 16px; }
+    .nss-screen-library.nss-library-grid .nss-library-note { font-size: 13px; }
+    .nss-screen-library.nss-library-grid .nss-library-header .nss-sub { font-size: 15px; }
+    .nss-screen-library.nss-library-grid .nss-tiles { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+    .nss-screen-library.nss-library-grid .nss-tile { padding: 14px; gap: 10px; }
+    .nss-screen-library.nss-library-grid .nss-tile-label { font-size: 22px; }
+    .nss-library-footer { flex-direction: column; gap: 14px; }
+    .nss-screen-library.nss-library-grid .nss-library-browse .nss-menu-item,
+    .nss-screen-library.nss-library-grid .nss-util .nss-menu-item { min-height: 50px; padding: 10px 6px; font-size: 16px; }
+    .nss-library-footer .nss-icon-chip { display: none; }
+}
+
+/* Match the toolbar and bottom buttons to the story columns. */
+.nss-screen-library.nss-library-grid .nss-library-header { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; gap: 18px; }
+.nss-screen-library.nss-library-grid .nss-library-filters { display: contents; }
+.nss-screen-library.nss-library-grid .nss-library-filters .nss-menu-item { width: 100%; max-width: none; }
+.nss-screen-library.nss-library-grid .nss-library-filters .nss-sort-stories { grid-area: 1 / 1; }
+.nss-screen-library.nss-library-grid .nss-library-filters .nss-filter-stories { grid-area: 1 / 2; }
+.nss-screen-library.nss-library-grid .nss-library-filters .nss-library-settings { grid-area: 1 / 3; }
+.nss-screen-library.nss-library-grid .nss-library-filters .nss-clear-stories { grid-area: 4 / 2; }
+.nss-screen-library.nss-library-grid .nss-library-header .nss-settings-note { grid-area: 2 / 1 / 3 / -1; margin: 0; text-align: center; }
+.nss-screen-library.nss-library-grid .nss-library-header .nss-sub { grid-area: 3 / 1 / 4 / -1; text-align: center; }
+.nss-screen-library.nss-library-grid .nss-library-footer { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.nss-screen-library.nss-library-grid .nss-library-paging { grid-area: 1 / 2; }
+.nss-screen-library.nss-library-grid .nss-library-footer .nss-util { grid-column: 1 / -1; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.nss-screen-library.nss-library-grid .nss-util [data-menu="help"] { grid-area: 1 / 1; }
+.nss-screen-library.nss-library-grid .nss-util [data-menu="exit"] { grid-area: 1 / 3; }
+@media (max-width: 620px) {
+    .nss-screen-library.nss-library-grid .nss-library-header { grid-template-columns: minmax(0, 1fr); }
+    .nss-screen-library.nss-library-grid .nss-library-filters .nss-sort-stories { grid-area: 1 / 1; }
+    .nss-screen-library.nss-library-grid .nss-library-filters .nss-filter-stories { grid-area: 2 / 1; }
+    .nss-screen-library.nss-library-grid .nss-library-filters .nss-library-settings { grid-area: 3 / 1; }
+    .nss-screen-library.nss-library-grid .nss-library-filters .nss-clear-stories { grid-area: 6 / 1; }
+    .nss-screen-library.nss-library-grid .nss-library-header .nss-settings-note { grid-area: 4 / 1; }
+    .nss-screen-library.nss-library-grid .nss-library-header .nss-sub { grid-area: 5 / 1; }
+    .nss-screen-library.nss-library-grid .nss-library-footer { grid-template-columns: minmax(0, 1fr); }
+    .nss-screen-library.nss-library-grid .nss-library-paging { grid-area: 1 / 1; }
+    .nss-screen-library.nss-library-grid .nss-library-footer .nss-util { grid-template-columns: minmax(0, 1fr); row-gap: 36px; }
+    .nss-screen-library.nss-library-grid .nss-util [data-menu="exit"] { grid-area: 2 / 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -16,8 +16,9 @@ const c=vm.createContext({window:{NSS},NSS,console,performance:{now:()=>now+=100
 const read=file=>vm.runInContext(fs.readFileSync(path.join(base,file),'utf8'),c,{filename:file});
 read('js/config.js');read('js/descriptions.js');read('js/braille-books.js');
 NSS.Descriptions.get=(id,i,simple,kind)=>rows.get(id+':'+i)?.[(simple?'simple':'book')+(kind==='after'?'Action':'Image')]||'';
+assert.match(NSS.Descriptions.get('little-fox',12,true,'after'),/large drawing of Turtle/,'identify the enlarged art as a drawing of Turtle');
 read('stories/list.js');
-for(const id of NSS.STORY_LIST){NSS.registerStory=def=>stories.push({...def,id,pages:def.pages.map(p=>({...p,text:p.text||p.textParts.join(' ')}))});read('stories/'+id+'/story.js');}
+for(const id of NSS.STORY_LIST){NSS.registerStory=def=>stories.push({...def,autoReadParts:true,id,pages:def.pages.map(p=>({...p,text:p.text||p.textParts.join(' ')}))});read('stories/'+id+'/story.js');}
 read('js/story.js');
 assert.equal(rows.size,stories.reduce((n,s)=>n+s.pages.length,0));
 for(const s of stories) s.pages.forEach((p,i)=>{
@@ -48,7 +49,9 @@ for(const look of ['book','cvi'])for(const legacyAnimations of ['on','off']){
   finishDescription('before');
   const page=story.pages[i],parts=page.textParts||[page.text];
   for(let j=0;j<parts.length;j++){
-   assert.equal(spoken.at(-1),parts[j]);assert.equal(NSS.Story.stats().partIndex,j);
+   if(story.autoReadParts)assert.equal(caption,parts[j],'silent long-book passage is ready immediately');
+   else assert.equal(spoken.at(-1),parts[j]);
+   assert.equal(NSS.Story.stats().partIndex,j);
    if(j<parts.length-1){assert.equal(hint,'Press to keep reading');NSS.Story.press();}
   }
   if(page.action!=='none'){
@@ -71,7 +74,7 @@ NSS.Story.press();const part=NSS.Story.stats().descriptionIndex;
 NSS.Story.pause();NSS.Story.resume();assert.equal(NSS.Story.stats().descriptionIndex,part,'pause retains description passage');
 NSS.Story.goToPage(19);assert.equal(NSS.Story.stats().descriptionIndex,0);assert.equal(NSS.Story.stats().partIndex,0);
 settings.imageDescriptions='off';NSS.Story.settingChanged('imageDescriptions');NSS.Story.resume();
-assert.equal(spoken.at(-1),stories.at(-1).pages[19].textParts[0]);
+assert.equal(caption,stories.at(-1).pages[19].textParts[0]);
 assert.equal(NSS.Story.stats().state,'done','off resumes first story passage');
 settings.imageDescriptions='on';NSS.Sound.after=()=>.7;
 NSS.Story.open(stories.find(s=>s.id==='rocky-says-hello'));NSS.Story.goToPage(1);finishDescription('before');
@@ -87,4 +90,46 @@ for(const [word,expected] of Object.entries(braille)){
  const unicode=NSS.BrailleBooks.cells(word).map(dots=>String.fromCodePoint(0x2800+dots.reduce((mask,dot)=>mask|(1<<(dot-1)),0))).join('');
  assert.equal(unicode,expected,word+' matches UEB alphabet cells');
 }
-console.log(`${count} complete page flows passed: all 54 pages, both looks, retired animation preferences ignored. Chart coverage, fresh presses, page jumps, pause, settings, and four Braille labels passed.`);
+let quickCount=0;
+settings.quickPageTurn='on';
+for(const look of ['book','cvi'])for(const descriptions of ['off','on']){
+ settings.look=look;settings.imageDescriptions=descriptions;
+ for(const story of stories){NSS.Story.open(story);for(let i=0;i<story.pages.length;i++){
+  NSS.Story.goToPage(i);
+  const page=story.pages[i],before=NSS.Story.stats();
+  if(descriptions==='on')finishDescription('before');
+  const passages=page.textParts||[page.text];
+  for(let j=0;j<passages.length;j++){
+   if(story.autoReadParts)assert.equal(caption,passages[j],'quick silent mode presents every passage');
+   else assert.equal(spoken.at(-1),passages[j],'quick mode attempts every story passage');
+   assert.equal(NSS.Story.stats().partIndex,j);
+   if(j<passages.length-1){assert.equal(hint,'Press to keep reading');NSS.Story.press();}
+  }
+  NSS.Story.press();
+  if(page.action!=='none'){
+   assert.equal(NSS.Story.stats().state,'acting','quick reading always reaches the animation');
+   assert.equal(NSS.Story.stats().actions,before.actions+1,'one animation per page');
+   assert.equal(hint,'','no page-turn prompt while the animation is playing');
+   NSS.Story.tick(NSS.CONFIG.actions[page.action].seconds/2);
+   NSS.Story.press();NSS.Story.press();
+   assert.equal(NSS.Story.stats().state,'acting','extra presses cannot cut an animation short');
+   assert.equal(NSS.Story.stats().index,i);
+   NSS.Story.tick(NSS.CONFIG.actions[page.action].seconds);
+   assert.notEqual(NSS.Story.stats().state,'turning','extra presses cannot queue a turn');
+   assert.equal(NSS.Story.stats().index,i);
+   if(NSS.Story.stats().state==='actionOutro')NSS.Story.press();
+   if(descriptions==='on')finishDescription('after');else NSS.Story.press();
+  }
+  assert.equal(NSS.Story.stats().state,'turning');NSS.Story.tick(1);
+  assert.equal(NSS.Story.stats().index,i===story.pages.length-1?0:i+1);
+  quickCount++;
+ }}
+}
+// Enabling Quick Page Turn after a normal-mode press was queued also waits
+// for a fresh press after the animation, rather than unexpectedly leaving.
+settings.quickPageTurn='off';settings.imageDescriptions='off';
+NSS.Story.open(stories.find(s=>s.id==='rocky-says-hello'));NSS.Story.goToPage(1);
+NSS.Story.press();NSS.Story.press();settings.quickPageTurn='on';NSS.Story.tick(100);
+assert.equal(NSS.Story.stats().state,'done','enabling quick mode clears an earlier queued turn');
+assert.equal(NSS.Story.stats().index,1);NSS.Story.press();assert.equal(NSS.Story.stats().state,'turning');
+console.log(`${count} normal and ${quickCount} quick page flows passed across every story, both looks and description modes. Quick reading preserves every full animation and waits for a fresh turn press, including after a mode change. Chart coverage, page jumps, pause, settings, and four Braille labels passed.`);

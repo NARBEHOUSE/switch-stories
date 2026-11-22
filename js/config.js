@@ -99,6 +99,14 @@ NSS.CONFIG = {
             on:  { label: 'On',  note: 'The words on each page are read aloud.' },
             off: { label: 'Off', note: 'Nothing is read aloud during the story, so you or a helper can read it.' }
         },
+        storyPrompts: {
+            on:  { label: 'On', note: 'Speak the story button directions, such as press to turn the page.' },
+            off: { label: 'Off', note: 'Keep the story button directions on screen without speaking them.' }
+        },
+        quickPageTurn: {
+            off: { label: 'Off', note: 'Finish reading each passage and play the page action before turning.' },
+            on:  { label: 'On', note: 'Press to interrupt the current part and start the next. After the last part, press for the animation, then again to turn the page.' }
+        },
         rate: {
             normal: { label: 'Normal', rate: 0.92 },
             slow:   { label: 'Slow',   rate: 0.75 }
@@ -140,11 +148,11 @@ NSS.CONFIG = {
     libraryBackground: 'images/library-background.jpg',
     fireflies: 12,
 
-    storiesPerScreen: 6,     // maximum per library page; smaller windows show fewer readable cards
+    storiesPerScreen: 9,     // three columns, up to three rows per library page
     maxPixelRatio: 2,        // crisp on 2x displays; cap the cost on very dense screens
 
     defaults: {
-        readAloud: 'on', rate: 'normal', imageDescriptions: 'off',
+        readAloud: 'on', rate: 'normal', imageDescriptions: 'off', storyPrompts: 'on', quickPageTurn: 'off',
         look: 'book', textSize: 'large', outline: 'yellow', characterSize: 'regular'
     }
 };

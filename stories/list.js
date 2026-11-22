@@ -22,8 +22,8 @@
  * events or endings. Invite readers to discover what happens for themselves.
  * Prefer one or two existing topics; add a new topic when it helps people choose.
  * Describe the text rather than assigning an age to the reader. Page counts
- * come from pages.length and include the title and ending. Animations are
- * standard for these stories and do not need a tag.
+ * come from pages.length and include the title and ending. The library adds
+ * Animations or No animations automatically from the story's page actions.
  * The By Page Count submenu groups these counts automatically; no page-range
  * tags need to be added to a story.
  * State whether the story is original or adapted in its title-page credits,
@@ -40,9 +40,11 @@
  * dates keep this list's order.
  *
  * For a longer page, use textParts: ['First few sentences.', 'Next sentences.']
- * instead of text. Each switch press replaces the passage on the same picture;
- * a page's action, if any, follows the final passage. Keep each passage short
+ * instead of text. Read Aloud continues passages on the same picture without
+ * a press. In silent reading, each press shows the next passage. Keep passages short
  * enough for Extra Large text on a phone. Continuations do not add page counts.
+ * This reading behavior applies to every book. A page's animation still waits
+ * for a press after the last passage, and physical pages wait for a press too.
  * Static illustrated pages may use spread: 'backgrounds/page-01.webp' with
  * action: 'none'. This shows the same art in both looks until simplified art
  * is authored. spreadFocus: [left, top, right, bottom] uses 0–1 image coordinates
@@ -63,6 +65,10 @@
 window.NSS = window.NSS || {};
 
 NSS.STORY_LIST = [
+    'little-ants-big-plan',
+    'real-heroes',
+    'little-fox',
+    'cat-and-dog-tea',
     'froggy-family-goes-to-cape-cod',
     'rocky-says-hello',
     'lily-loves-books',

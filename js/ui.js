@@ -2,7 +2,8 @@
  * Switch Stories - the DOM interface on top of the scene.
  *
  * Screens: library, filters, lengths, story, settings, pause, pages, help. Every menu is a plain,
- * dark card, scaled to fit the window so nothing ever scrolls. Plain and calm
+ * dark card. The library scrolls to keep full story details readable; other
+ * menus scale to fit the window. Plain and calm
  * on purpose, as in Glow Pop: many players have CVI.
  *
  * The library shows big cover tiles (a few per screen, with More Stories when
@@ -27,7 +28,18 @@ NSS.UI = (function () {
     let libraryPage = 0;
     let librarySize = 3;
     let libraryTag = '';
-    let libraryMostRead = false;
+    const SORT_KEY = 'nss-library-sort-v1';
+    const SORTS = [
+        { key: 'newest', label: 'Newest' },
+        { key: 'alphabetical', label: 'Alphabetical' },
+        { key: 'recent', label: 'Recently Read' },
+        { key: 'most-read', label: 'Most Read' }
+    ];
+    let librarySort = 'newest';
+    try {
+        const saved = localStorage.getItem(SORT_KEY);
+        if (SORTS.some(sort => sort.key === saved)) librarySort = saved;
+    } catch (e) { /* Sorting also works when browser storage is unavailable. */ }
     let libraryLength = '';
     let filterPage = 0;
     let filterSize = 6;
@@ -82,6 +94,7 @@ NSS.UI = (function () {
             exit: svg('<path d="M28 10H12v28h16"/><path d="M24 24h14"/><path d="M32 18l6 6-6 6"/>'),
             play: svg('<circle cx="24" cy="24" r="17"/><path d="M20 17l12 7-12 7z"/>'),
             back: svg('<path d="M30 12 18 24l12 12"/>'),
+            sort: svg('<path d="M15 38V10m-6 6 6-6 6 6M33 10v28m-6-6 6 6 6-6"/>'),
             more: svg('<path d="M18 12l12 12-12 12"/>'),
             restart: svg('<path d="M12 24a12 12 0 1 0 4-9"/><path d="M12 9v7h7"/>'),
             book: svg('<path d="M24 14c-4-3-10-4-16-3v24c6-1 12 0 16 3 4-3 10-4 16-3V11c-6-1-12 0-16 3z"/><path d="M24 14v24"/>'),
@@ -172,33 +185,36 @@ NSS.UI = (function () {
         const head = node('div', 'nss-brand', lc);
         node('span', 'nss-logo', head).innerHTML = ICON.book;
         node('h1', 'nss-brand-title', head, 'Switch Stories');
-        const intro = node('p', 'nss-library-intro', lc);
-        node('span', '', intro, 'Books created and adapted for switches,');
-        node('br', '', intro);
-        node('span', '', intro, 'with cause and effect animations in every story.');
+        node('p', 'nss-library-intro', lc, 'Switch-adapted books that open up stories to readers with a wider range of accessibility needs.');
         const browseHeader = node('div', 'nss-library-header', lc);
         const browse = node('div', 'nss-library-browse nss-library-filters', browseHeader);
+        el.sortBtn = menuItem(browse, 'Sort: Newest', 'sort');
+        el.sortBtn.classList.add('nss-sort-stories');
         el.filterBtn = menuItem(browse, 'Filter Stories', 'filter');
+        el.filterBtn.classList.add('nss-filter-stories');
+        el.librarySettings = menuItem(browse, 'Settings', 'settings');
+        el.librarySettings.classList.add('nss-library-settings');
         el.clearFilter = menuItem(browse, 'Show All', 'books');
+        el.clearFilter.classList.add('nss-clear-stories');
         el.librarySub = node('p', 'nss-sub', browseHeader, 'Choose a story.');
         el.librarySub.setAttribute('aria-live', 'polite');
-        el.tiles = node('div', 'nss-tiles', lc);
-        el.libraryEmpty = node('p', 'nss-sub', lc, 'No stories match this filter. Choose another filter or show all stories.');
-        el.libraryPaging = node('div', 'nss-library-browse nss-library-paging', lc);
-        el.more = menuItem(el.libraryPaging, 'More Stories', 'more');
-        el.more.classList.add('nss-more');
-        const settingsNote = node('p', 'nss-library-note nss-settings-note', lc);
+        const settingsNote = node('p', 'nss-library-note nss-settings-note', browseHeader);
         node('span', '', settingsNote, 'Use ');
         node('strong', '', settingsNote, 'Settings');
         node('span', '', settingsNote, ' to adjust reading, visuals, sound and switch controls. Turn on Image Descriptions under ');
         node('strong', '', settingsNote, 'Reading');
         node('span', '', settingsNote, '.');
+        el.tiles = node('div', 'nss-tiles', lc);
+        el.libraryEmpty = node('p', 'nss-sub', lc, 'No stories match this filter. Choose another filter or show all stories.');
+        el.libraryPaging = node('div', 'nss-library-browse nss-library-paging', lc);
+        el.more = menuItem(el.libraryPaging, 'More Stories', 'more');
+        el.more.classList.add('nss-more');
         el.libraryUtil = node('div', 'nss-util', lc);
         menuItem(el.libraryUtil, 'How to Play', 'help').dataset.menu = 'help';
-        menuItem(el.libraryUtil, 'Settings', 'settings').dataset.menu = 'settings';
         // The standalone copy (opened from a file, outside the hub) has no hub to go back to.
         if (!NSS.STANDALONE) menuItem(el.libraryUtil, 'Exit Game', 'exit').dataset.menu = 'exit';
-        else el.libraryUtil.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
+        const libraryFooter = node('div', 'nss-library-footer', lc);
+        libraryFooter.append(el.libraryPaging, el.libraryUtil);
 
         el.filters = node('section', 'nss-screen', el.root);
         const fc = card(el.filters, 'Filter Stories', 'Browse by most read, page count, or tag.');
@@ -302,6 +318,21 @@ NSS.UI = (function () {
             fit();
             paintPictures();
         });
+        // Keep the existing scan choices/order. Moving its highlight also
+        // brings the complete library choice into view on smaller displays.
+        let libraryScrollFrame = 0;
+        const revealLibraryChoice = () => {
+            if (screen !== 'library' || libraryScrollFrame) return;
+            libraryScrollFrame = requestAnimationFrame(() => {
+                libraryScrollFrame = 0;
+                if (screen !== 'library') return;
+                const choice = el.library.querySelector('.nss-focus, .nss-focus-full') ||
+                    (el.library.contains(document.activeElement) ? document.activeElement : null);
+                if (choice) choice.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            });
+        };
+        new MutationObserver(revealLibraryChoice).observe(el.library, { subtree: true, attributes: true, attributeFilter: ['class'] });
+        el.library.addEventListener('focusin', revealLibraryChoice);
         try {
             window.NarbeVoiceManager.onSettingsChange(refreshSettingsValues);
             window.NarbeScanManager.subscribe(refreshSettingsValues);
@@ -390,12 +421,13 @@ NSS.UI = (function () {
 
     function current() { return screen; }
 
-    /** Scale the card to fit the window, so nothing is ever cut off or scrolled. */
+    /** Library text stays full size; other menu cards scale to fit. */
     function fit() {
         const sec = el[screen];
         const c = sec && sec.querySelector && sec.querySelector('.nss-card');
         if (!c) return;
         c.style.setProperty('--card-scale', '1');
+        if (screen === 'library') return;
         const w = c.offsetWidth, h = c.offsetHeight;
         if (!w || !h) return;
         const s = Math.min(displayScale(), (window.innerWidth - 16) / w, (window.innerHeight - 16) / h);
@@ -419,8 +451,11 @@ NSS.UI = (function () {
                 });
             } else if (screen === 'settings' && page === 'look') {
                 const s = sizedContext(el.previewPic);
+                // Preview the paused page; use a sample only when no book is open.
+                const current = NSS.Story.view();
                 const first = NSS.Library.all()[0];
-                if (s) NSS.Scene.paintPreview(s.c, s.w, s.h, first && first.pages[1] ? first.pages[1] : SAMPLE_PAGE);
+                const previewPage = current ? current.page : (first && first.pages[1] ? first.pages[1] : SAMPLE_PAGE);
+                if (s) NSS.Scene.paintPreview(s.c, s.w, s.h, previewPage);
             }
         });
     }
@@ -430,15 +465,28 @@ NSS.UI = (function () {
     function storyCount(n) { return n + (n === 1 ? ' story' : ' stories'); }
 
     function inPageRange(story, range) { return story.pageCount >= range.min && story.pageCount <= range.max; }
-    function hasLibraryFilter() { return !!(libraryTag || libraryMostRead || libraryLength); }
+    function hasLibraryFilter() { return !!(libraryTag || libraryLength); }
+
+    function sortLabel() { return SORTS.find(sort => sort.key === librarySort).label; }
+
+    function setLibrarySort(key) {
+        librarySort = key;
+        libraryPage = 0;
+        try { localStorage.setItem(SORT_KEY, key); } catch (e) { /* Keep the choice for this session. */ }
+    }
 
     function filteredStories() {
         const range = PAGE_RANGES.find(r => r.key === libraryLength);
         const stories = NSS.Library.all().filter(story =>
             (!libraryTag || story.tags.some(tag => tag.toLowerCase() === libraryTag)) && (!range || inPageRange(story, range)));
-        // New releases lead by default and break ties in this browser's reading counts.
-        stories.sort((a, b) => (libraryMostRead ? NSS.ReadingHistory.count(b.id) - NSS.ReadingHistory.count(a.id) : 0)
-            || b.availableOn.localeCompare(a.availableOn));
+        // Unread stories follow recent reads; new releases break history ties.
+        stories.sort((a, b) => {
+            let order = 0;
+            if (librarySort === 'alphabetical') order = a.title.localeCompare(b.title, undefined, { sensitivity: 'base', numeric: true });
+            else if (librarySort === 'recent') order = NSS.ReadingHistory.lastRead(b.id) - NSS.ReadingHistory.lastRead(a.id);
+            else if (librarySort === 'most-read') order = NSS.ReadingHistory.count(b.id) - NSS.ReadingHistory.count(a.id);
+            return order || b.availableOn.localeCompare(a.availableOn);
+        });
         return stories;
     }
 
@@ -455,13 +503,11 @@ NSS.UI = (function () {
     function librarySummary() {
         const tag = filterTags().find(t => t.key === libraryTag);
         const range = PAGE_RANGES.find(r => r.key === libraryLength);
-        return (range ? range.label : libraryMostRead ? 'Most Read' : tag ? tag.label : 'All stories') + ' · ' + storyCount(filteredStories().length);
+        return (range ? range.label : tag ? tag.label : 'All stories') + ' · ' + storyCount(filteredStories().length);
     }
 
     function libraryCapacity() {
-        if (window.innerWidth <= 620 || window.innerHeight < 600) return 1;
-        if (window.innerWidth < 1000) return Math.min(C.storiesPerScreen, 2);
-        return Math.min(C.storiesPerScreen, window.innerWidth >= 1200 && window.innerHeight >= 900 ? 6 : 3);
+        return C.storiesPerScreen;
     }
 
     function libraryPages() { return Math.max(1, Math.ceil(filteredStories().length / librarySize)); }
@@ -478,9 +524,9 @@ NSS.UI = (function () {
         librarySize = nextSize;
         const list = storiesOnScreen();
         el.tiles.innerHTML = '';
-        el.library.classList.toggle('nss-library-single', librarySize === 1);
-        el.library.classList.toggle('nss-library-grid', list.length > 3);
-        el.tiles.style.setProperty('--tiles', String(Math.max(1, Math.min(3, list.length))));
+        el.library.scrollTop = 0;
+        el.library.classList.add('nss-library-grid');
+        el.tiles.style.setProperty('--tiles', '3');
         list.forEach(function (story) {
             const t = button('nss-tile', el.tiles);
             t.dataset.story = story.id;
@@ -508,13 +554,18 @@ NSS.UI = (function () {
         el.libraryPaging.hidden = libraryPages() <= 1;
         el.clearFilter.style.display = hasLibraryFilter() ? '' : 'none';
         el.filterBtn.querySelector('.nss-menu-label').textContent = hasLibraryFilter() ? 'Change Filter' : 'Filter Stories';
+        el.sortBtn.querySelector('.nss-menu-label').textContent = 'Sort: ' + sortLabel();
+        el.sortBtn.setAttribute('aria-label', 'Sort: ' + sortLabel());
+        el.sortBtn.title = 'Press to change the story order';
     }
 
     function chooseLibraryFilter(options) {
         const next = options || {};
-        libraryTag = next.tag || '';
-        libraryMostRead = !!next.mostRead;
-        libraryLength = next.length || '';
+        if (next.mostRead) setLibrarySort('most-read');
+        else {
+            libraryTag = next.tag || '';
+            libraryLength = next.length || '';
+        }
         libraryPage = 0;
         show('library');
     }
@@ -535,7 +586,7 @@ NSS.UI = (function () {
             .forEach(tag => {
                 const b = button('nss-menu-item nss-filter-choice', el.filterChoices);
                 const mostRead = tag.key === null, pageCounts = !!tag.pageCounts;
-                const selected = pageCounts ? !!libraryLength : mostRead ? libraryMostRead : !libraryMostRead && !libraryLength && tag.key === libraryTag;
+                const selected = pageCounts ? !!libraryLength : mostRead ? librarySort === 'most-read' : !libraryLength && tag.key === libraryTag;
                 if (pageCounts) b.dataset.pageCounts = 'true';
                 else if (mostRead) b.dataset.sort = 'most-read';
                 else b.dataset.tag = tag.key;
@@ -599,14 +650,24 @@ NSS.UI = (function () {
     }
 
     function libraryScannables() {
-        const list = [{ id: 'library:filter', el: el.filterBtn, speak: hasLibraryFilter() ? 'Change Filter' : 'Filter Stories',
-            action: function () { filterPage = 0; show('filters'); } }];
+        const list = [{ id: 'library:sort', el: el.sortBtn, speak: 'Sort: ' + sortLabel(),
+            action: function () {
+                const index = SORTS.findIndex(sort => sort.key === librarySort);
+                setLibrarySort(SORTS[(index + 1) % SORTS.length].key);
+                renderLibrary(); fit(); paintPictures();
+                NSS.Input.refresh(true, 'library:sort');
+                NSS.Input.announce('Sort: ' + sortLabel());
+            } }, { id: 'library:filter', el: el.filterBtn, speak: hasLibraryFilter() ? 'Change Filter' : 'Filter Stories',
+            action: function () { filterPage = 0; show('filters'); } },
+            { id: 'library:settings', el: el.librarySettings, speak: 'Settings',
+                action: function () { settingsFrom = 'library'; show('settings'); } }];
         if (hasLibraryFilter()) list.push({ id: 'library:clear', el: el.clearFilter, speak: 'Show All Stories', action: function () { chooseLibraryFilter(); } });
         storiesOnScreen().forEach(function (story) {
             list.push({
                 id: 'library:' + story.id,
                 el: el.tiles.querySelector('[data-story="' + CSS.escape(story.id) + '"]'),
                 speak: story.title,
+                description: story.description,
                 action: function () { NSS.Game.openStory(story.id); }
             });
         });
@@ -625,7 +686,6 @@ NSS.UI = (function () {
         }
         return list.concat([
             { id: 'library:help', el: el.libraryUtil.querySelector('[data-menu="help"]'), speak: 'How to Play', action: function () { show('help'); } },
-            { id: 'library:settings', el: el.libraryUtil.querySelector('[data-menu="settings"]'), speak: 'Settings', action: function () { settingsFrom = 'library'; show('settings'); } },
             { id: 'library:exit', el: el.libraryUtil.querySelector('[data-menu="exit"]'), speak: 'Exit Game', action: function () { NSS.Game.exit(); } }
         ]);
     }
@@ -723,7 +783,7 @@ NSS.UI = (function () {
         }
         if (!scanMode()) return [];
         return [
-            { id: 'story:page', el: el.pageBtn, speak: function () { return el.hint.textContent; }, action: function () { NSS.Story.press(); } },
+            { id: 'story:page', el: el.pageBtn, speak: function () { return S().is('storyPrompts', 'on') ? el.hint.textContent : ''; }, action: function () { NSS.Story.press(); } },
             { id: 'story:pause', el: el.pauseBtn, speak: 'Pause', action: function () { NSS.Game.pause(); } }
         ];
     }
@@ -797,20 +857,19 @@ NSS.UI = (function () {
     function helpLines() {
         let auto = false;
         try { auto = !!window.NarbeScanManager.getSettings().autoScan; } catch (e) { /* no scan manager */ }
-        const lines = ['Choose a story, then follow the directions at the bottom.'];
-        if (scanMode()) {
-            lines.push(auto ? 'In the story, the highlight moves between the *directions at the bottom* and *Pause* by itself. *Enter* on the directions keeps the story going.'
-                            : 'In the story, *Space* moves the highlight between the *directions at the bottom* and *Pause*. *Enter* on the directions keeps the story going.');
-        } else {
-            lines.push('In the story, *press and release* a switch, key or controller button, or tap the screen. *Hold Enter*, or tap the *Pause* button, to bring up the menu.');
-        }
-        lines.push('Follow the words at the bottom: *press* to keep reading, see an action, or turn the page. Longer passages continue over the same picture.');
-        lines.push('To jump ahead or go back, open *Pause* and choose *Go to Page*. Choose a number, or use the arrows to see more pages.');
-        if (S().is('imageDescriptions', 'on')) lines.push('*Image Descriptions* explains each picture before the story and each animation afterward. *Press* after each description to continue. Descriptions speak only with *Read Aloud* on.');
-        lines.push('At *The End*, choose *Read Again* or *Pick a Different Story*.');
-        lines.push(auto ? 'In the menus, the highlight moves by itself. *Enter* chooses.'
-                        : 'In the menus, *tap Space* to move the highlight and *hold Space* to go back. *Enter* chooses.');
-        lines.push('In *Settings*, you or a helper can change how the story is read, how it looks, and how the switches work.');
+        const lines = [auto
+            ? '*Choose a book:* The highlight moves for you. Press *Enter* to choose.'
+            : '*Choose a book:* Press *Space* to move the highlight. Press *Enter* to choose. Hold *Space* to go back.'];
+        lines.push(scanMode()
+            ? '*Read:* Choose the button below the picture. It tells you when to keep reading, play an animation, or turn the page.'
+            : '*Read:* Press and release your switch, or tap the screen. Follow the button below the picture.');
+        lines.push('*Listen:* With *Read Aloud* on, the words continue automatically. Page turns wait for you.');
+        if (S().is('quickPageTurn', 'on')) lines.push('*Quick Page Turn:* Press during speech to move ahead. Animations still finish.');
+        if (S().is('imageDescriptions', 'on')) lines.push('*Picture descriptions:* Press after each description to continue.');
+        lines.push(scanMode()
+            ? '*Pause:* Choose *Pause* to change settings or jump to another page.'
+            : '*Pause:* Hold *Enter* or tap *Pause* to change settings or jump to another page.');
+        lines.push('*Finish:* Choose *Read Again* or *Pick a Different Story*.');
         return lines;
     }
 
@@ -915,13 +974,22 @@ NSS.UI = (function () {
         if (page === 'top') {
             return PAGE_ORDER.map(function (p) {
                 return { id: p, label: PAGES[p].title, icon: PAGES[p].icon, nav: true, action: () => openPage(p) };
-            }).concat([backItem()]);
+            }).concat([
+                ...(settingsFrom === 'library' && !NSS.STANDALONE ? [{
+                    id: 'exit', label: 'Exit Game', icon: 'exit', nav: true,
+                    action: () => NSS.Game.exit()
+                }] : []),
+                backItem()
+            ]);
         }
         if (page === 'reading') {
             return [
                 gameSetting('readAloud', 'Read Aloud'),
                 gameSetting('imageDescriptions', 'Image Descriptions'),
+                gameSetting('storyPrompts', 'Speak Story Prompts'),
                 gameSetting('rate', 'Reading Speed', () => 'This is how fast the computer voice reads.'),
+                { ...gameSetting('quickPageTurn', 'Quick Page Turn'),
+                    note: 'Press during reading to move ahead. Animations still play before the page turns.' },
                 backItem()
             ];
         }
@@ -1035,7 +1103,14 @@ NSS.UI = (function () {
                 b = menuItem(el.settingsList, item.id === 'back' ? 'Back' : item.label, item.icon);
             } else {
                 b = button('nss-row' + (item.nav ? ' nss-row-nav' : ''), el.settingsList);
-                node('span', 'nss-row-label', b, item.label);
+                const copy = item.note ? node('span', 'nss-row-copy', b) : b;
+                node('span', 'nss-row-label', copy, item.label);
+                if (item.note) {
+                    const note = node('span', 'nss-row-note', copy, item.note);
+                    note.id = 'setting-note-' + item.id;
+                    b.setAttribute('aria-label', item.label + (item.value ? ', ' + item.value() : ''));
+                    b.setAttribute('aria-describedby', note.id);
+                }
                 if (item.value) {
                     const v = node('span', 'nss-row-value', b);
                     const sw = item.swatch && item.swatch();
@@ -1098,7 +1173,7 @@ NSS.UI = (function () {
         let key = screen;
         if (screen === 'story') key = NSS.Story.isChoosing() ? 'story:end' : 'story:' + S().get('pauseMode');
         else if (screen === 'settings') key = 'settings:' + page;
-        else if (screen === 'library') key = 'library:' + (libraryLength ? 'pages:' + libraryLength : libraryMostRead ? 'most-read' : 'tag:' + libraryTag) + ':' + libraryPage;
+        else if (screen === 'library') key = 'library:' + librarySort + ':' + (libraryLength ? 'pages:' + libraryLength : 'tag:' + libraryTag) + ':' + libraryPage;
         else if (screen === 'filters') key = 'filters:' + filterPage;
         else if (screen === 'pages') key = 'pages:' + pageGroup;
         return { key: key, host: scanHost };
