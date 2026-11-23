@@ -78,6 +78,22 @@ NSS.Reader = (function () {
             done();
         };
         if (!S().is('readAloud', 'on')) { later(finish, SILENT_PAUSE); return; }
+        // A book can request a gap between spoken phrases while keeping its
+        // whole caption visible. stop() cancels both speech and the gap timer.
+        if (page.speechSequence) {
+            let part = 0;
+            const readPart = function () {
+                if (t !== token) return;
+                speakWords(page.speechSequence.parts[part], t, function () {
+                    if (t !== token) return;
+                    part++;
+                    if (part === page.speechSequence.parts.length) { finish(); return; }
+                    later(readPart, page.speechSequence.pauseMs);
+                });
+            };
+            readPart();
+            return;
+        }
         speakWords(page.text, t, finish);
     }
 

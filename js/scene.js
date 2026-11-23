@@ -1094,6 +1094,7 @@ NSS.Scene = (function () {
      *   zoom   bigger, for the small cover tiles
      */
     function drawPage(w, pictureH, page, st) {
+        if (page.story.id === 'abcd' && page.alphabet && NSS.ABCD) return NSS.ABCD.draw(ctx, imageFor, w, pictureH, page, st);
         if (page.spread) return NSS.Illustrations.drawSpread(ctx, imageFor, w, pictureH, page, st);
         if (page.illustration) return NSS.Illustrations.draw(ctx, imageFor, w, pictureH, page, st, time);
         if (page.cast || page.background) return drawCastPage(w, pictureH, page, st);

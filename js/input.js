@@ -35,6 +35,7 @@ NSS.Input = (function () {
     const RING_SHOW = 3000;        // allow a normal press before showing or sounding the countdown
     const PAUSE_COUNTDOWN = 4000;  // keep the full four-second countdown after the initial delay
     const PAUSE_HOLD = RING_SHOW + PAUSE_COUNTDOWN;
+    const SORT_EXTRA_TIME = 1000;  // give readers time to choose another story order
 
     let provider = function () { return []; };
     let items = [];
@@ -75,9 +76,41 @@ NSS.Input = (function () {
 
     // --- the scan list -----------------------------------------------------------
 
+    /** Only this game's controller gets longer on Sort; hub preferences stay intact. */
+    function createStoryScan(options) {
+        const shared = SM(), subscribers = new Map();
+        let controller;
+        const withSortTime = settings => ({
+            ...settings,
+            // Read the current identity when the shared controller arms its clock.
+            // This also covers repeat selections, speech completion and held keys.
+            get scanInterval() {
+                return settings.scanInterval +
+                    (controller && controller.getState().id === 'library:sort' ? SORT_EXTRA_TIME : 0);
+            }
+        });
+        const local = Object.assign(Object.create(shared), {
+            getSettings: () => withSortTime(shared.getSettings()),
+            subscribe(callback) {
+                if (subscribers.has(callback)) return;
+                const forward = settings => callback(withSortTime(settings));
+                subscribers.set(callback, forward);
+                shared.subscribe(forward);
+            },
+            unsubscribe(callback) {
+                const forward = subscribers.get(callback);
+                if (forward) shared.unsubscribe(forward);
+                subscribers.delete(callback);
+            }
+        });
+        controller = window.NarbeChoiceScan.create(local, options);
+        return controller;
+    }
+
     function ensureChoice() {
         if (choice || !window.NarbeChoiceScanAdapter || !SM()) return choice;
         choice = window.NarbeChoiceScanAdapter.create({
+            manager: Object.assign(Object.create(SM()), { createChoiceScan: createStoryScan }),
             holdThreshold: BACK_SCAN_HOLD,
             stateHost: document.getElementById('nss'),
             speak: say,

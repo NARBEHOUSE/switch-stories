@@ -84,7 +84,7 @@
         cviOutline: 'alpha',
         objects,
         credits: {
-            text: 'Cat and Dog Tea. Author and illustrator: René Leisink. Published by The Asia Foundation – Let’s Read. Supplied English edition © The Asia Foundation, 2023, a modified version of the original story. Adapted for switch access by NARBE LLC: original story wording retained; illustrations recreated and extended with AI; switch animations, Simple High Contrast views, image descriptions and an ending page added. Created to expand access to stories for people who use switches and support a wider range of accessibility needs.',
+            text: 'Cat and Dog Tea. Author and illustrator: René Leisink. Published by The Asia Foundation – Let’s Read. Supplied English edition © The Asia Foundation, 2023, a modified version of the original story. Adapted for switch access by NARBE LLC: original story wording retained; illustrations extended; switch animations added. Created to expand access to stories for people who use switches and support a wider range of accessibility needs.',
             links: [
                 { label: 'CC BY-NC 4.0', url: 'https://creativecommons.org/licenses/by-nc/4.0/' },
                 { label: 'Let’s Read source', url: 'https://www.letsreadasia.org/' }

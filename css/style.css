@@ -857,7 +857,11 @@ body:has(.nss-screen-library.show) { touch-action: pan-y; }
 .nss-screen-library.nss-library-grid .nss-library-header .nss-settings-note { grid-area: 2 / 1 / 3 / -1; margin: 0; text-align: center; }
 .nss-screen-library.nss-library-grid .nss-library-header .nss-sub { grid-area: 3 / 1 / 4 / -1; text-align: center; }
 .nss-screen-library.nss-library-grid .nss-library-footer { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
-.nss-screen-library.nss-library-grid .nss-library-paging { grid-area: 1 / 2; }
+.nss-screen-library.nss-library-grid .nss-library-paging { grid-area: 1 / 1 / 2 / -1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: center; }
+.nss-screen-library.nss-library-grid .nss-library-paging[hidden] { display: none; }
+.nss-screen-library.nss-library-grid .nss-library-paging .nss-menu-item { width: 100%; max-width: none; justify-content: center; text-align: center; }
+.nss-library-paging .nss-menu-item:disabled { opacity: .4; cursor: default; }
+.nss-library-page-status { text-align: center; font: 600 17px/1.4 'Segoe UI', system-ui, sans-serif; }
 .nss-screen-library.nss-library-grid .nss-library-footer .nss-util { grid-column: 1 / -1; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
 .nss-screen-library.nss-library-grid .nss-util [data-menu="help"] { grid-area: 1 / 1; }
 .nss-screen-library.nss-library-grid .nss-util [data-menu="exit"] { grid-area: 1 / 3; }
@@ -870,7 +874,13 @@ body:has(.nss-screen-library.show) { touch-action: pan-y; }
     .nss-screen-library.nss-library-grid .nss-library-header .nss-settings-note { grid-area: 4 / 1; }
     .nss-screen-library.nss-library-grid .nss-library-header .nss-sub { grid-area: 5 / 1; }
     .nss-screen-library.nss-library-grid .nss-library-footer { grid-template-columns: minmax(0, 1fr); }
-    .nss-screen-library.nss-library-grid .nss-library-paging { grid-area: 1 / 1; }
+    .nss-screen-library.nss-library-grid .nss-library-paging { grid-area: 1 / 1; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .nss-library-page-status { grid-area: 1 / 1 / 2 / -1; }
+    .nss-screen-library.nss-library-grid .nss-library-paging .nss-menu-item { grid-row: 2; }
+    .nss-screen-library.nss-library-grid .nss-library-filters .nss-menu-item,
+    .nss-screen-library.nss-library-grid .nss-library-footer .nss-menu-item { display: flex; flex-direction: row; align-items: center; justify-content: center; text-align: center; }
+    .nss-screen-library.nss-library-grid .nss-library-filters .nss-menu-label,
+    .nss-screen-library.nss-library-grid .nss-library-footer .nss-menu-label { flex: 0 1 auto; text-align: center; }
     .nss-screen-library.nss-library-grid .nss-library-footer .nss-util { grid-template-columns: minmax(0, 1fr); row-gap: 36px; }
     .nss-screen-library.nss-library-grid .nss-util [data-menu="exit"] { grid-area: 2 / 1; }
 }

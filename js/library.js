@@ -231,6 +231,14 @@ NSS.Library = (function () {
             .map(l => ({ label: l.label, url: l.url })) };
     }
 
+    /** Optional pauses within one caption; these do not create extra switch steps. */
+    function normalizeSpeechSequence(raw, text) {
+        if (!raw || !Array.isArray(raw.parts)) return null;
+        const parts = raw.parts.map(plainText).filter(Boolean);
+        if (parts.length < 2 || parts.join(' ') !== text) return null;
+        return { parts: parts, pauseMs: Number.isFinite(raw.pauseMs) ? clampNum(raw.pauseMs, 0, 5000) : 0 };
+    }
+
     /** [x, y] as fractions of the picture (where an object comes out of, or where a character starts). */
     function point(value, fallback) {
         return Array.isArray(value) && value.length === 2 && value.every(n => typeof n === 'number')
@@ -243,6 +251,7 @@ NSS.Library = (function () {
         const textParts = Array.isArray(p.textParts) ? p.textParts.map(plainText).filter(Boolean) : [];
         let text = textParts.length ? textParts.join(' ') : typeof p.text === 'string' ? p.text.replace(/\s+/g, ' ').trim() : '';
         if (!text) { warn(title, where + ' has no text.'); text = ' '; }
+        const speechSequence = !textParts.length ? normalizeSpeechSequence(p.speechSequence, text) : null;
         let action = typeof p.action === 'string' ? p.action.trim().toLowerCase() : '';
         if (!C.actions[action]) {
             warn(title, where + ' has action "' + p.action + '", which is not one of: ' + Object.keys(C.actions).join(', ') + '. Using "wag".');
@@ -301,6 +310,7 @@ NSS.Library = (function () {
             text: text,
             // A switch advances these passages while the illustration and page number stay put.
             textParts: textParts.length ? textParts : null,
+            ...(speechSequence ? { speechSequence: speechSequence } : {}),
             spread: background(p.spread, file),
             spreadAlignTop: p.spreadAlignTop === true,
             // A panorama's outer scenery may extend; its character region stays proportional.

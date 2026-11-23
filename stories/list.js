@@ -65,6 +65,8 @@
 window.NSS = window.NSS || {};
 
 NSS.STORY_LIST = [
+    'abcd',
+    'polaris-the-north-star',
     'little-ants-big-plan',
     'real-heroes',
     'little-fox',

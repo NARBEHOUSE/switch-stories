@@ -207,8 +207,9 @@ NSS.UI = (function () {
         el.tiles = node('div', 'nss-tiles', lc);
         el.libraryEmpty = node('p', 'nss-sub', lc, 'No stories match this filter. Choose another filter or show all stories.');
         el.libraryPaging = node('div', 'nss-library-browse nss-library-paging', lc);
-        el.more = menuItem(el.libraryPaging, 'More Stories', 'more');
-        el.more.classList.add('nss-more');
+        el.libraryPrevious = button('nss-menu-item', el.libraryPaging, 'Previous stories');
+        el.libraryPageStatus = node('span', 'nss-library-page-status', el.libraryPaging);
+        el.libraryNext = button('nss-menu-item', el.libraryPaging, 'Next stories');
         el.libraryUtil = node('div', 'nss-util', lc);
         menuItem(el.libraryUtil, 'How to Play', 'help').dataset.menu = 'help';
         // The standalone copy (opened from a file, outside the hub) has no hub to go back to.
@@ -293,9 +294,9 @@ NSS.UI = (function () {
         // filling ring). In Scan to Pause, Pause is also a scan item.
         el.pauseBtn.addEventListener('click', function (e) {
             if (screen !== 'story') return;
-            // In Scan to Pause, Pause is a scan item and the scan handles its click
-            // - except on the end choices, where Pause is not one of the choices.
-            if (!NSS.Input.isFreePlay() && !NSS.Story.isChoosing()) return;
+            // Scanning handles this button on story pages and the end choices.
+            // Only free-play pages need a separate helper click handler.
+            if (!NSS.Input.isFreePlay()) return;
             e.preventDefault();
             NSS.Game.pause();
         });
@@ -550,8 +551,10 @@ NSS.UI = (function () {
         el.librarySub.textContent = none ? 'No stories yet.' : librarySummary() +
             (libraryPages() > 1 ? ' · Page ' + (libraryPage + 1) + ' of ' + libraryPages() : '');
         el.libraryEmpty.hidden = none || list.length > 0;
-        el.more.style.display = libraryPages() > 1 ? '' : 'none';
         el.libraryPaging.hidden = libraryPages() <= 1;
+        el.libraryPrevious.disabled = libraryPage === 0;
+        el.libraryNext.disabled = libraryPage === libraryPages() - 1;
+        el.libraryPageStatus.textContent = 'Page ' + (libraryPage + 1) + ' of ' + libraryPages();
         el.clearFilter.style.display = hasLibraryFilter() ? '' : 'none';
         el.filterBtn.querySelector('.nss-menu-label').textContent = hasLibraryFilter() ? 'Change Filter' : 'Filter Stories';
         el.sortBtn.querySelector('.nss-menu-label').textContent = 'Sort: ' + sortLabel();
@@ -672,22 +675,28 @@ NSS.UI = (function () {
             });
         });
         if (libraryPages() > 1) {
-            list.push({
-                id: 'library:more', el: el.more, speak: 'More Stories',
-                action: function () {
-                    libraryPage = (libraryPage + 1) % libraryPages();
-                    renderLibrary();
-                    fit();
-                    NSS.Input.refresh(true);
-                    paintPictures();
-                    NSS.Input.announce(el.librarySub.textContent + '. ' + storiesOnScreen().map(s => s.title).join('. ') + '.');
-                }
+            if (!el.libraryPrevious.disabled) list.push({
+                id: 'library:previous', el: el.libraryPrevious,
+                speak: 'Previous stories. Page ' + libraryPage + ' of ' + libraryPages(),
+                action: () => changeLibraryPage(-1)
+            });
+            if (!el.libraryNext.disabled) list.push({
+                id: 'library:next', el: el.libraryNext,
+                speak: 'Next stories. Page ' + (libraryPage + 2) + ' of ' + libraryPages(),
+                action: () => changeLibraryPage(1)
             });
         }
         return list.concat([
             { id: 'library:help', el: el.libraryUtil.querySelector('[data-menu="help"]'), speak: 'How to Play', action: function () { show('help'); } },
             { id: 'library:exit', el: el.libraryUtil.querySelector('[data-menu="exit"]'), speak: 'Exit Game', action: function () { NSS.Game.exit(); } }
         ]);
+    }
+
+    function changeLibraryPage(direction) {
+        libraryPage = Math.max(0, Math.min(libraryPages() - 1, libraryPage + direction));
+        renderLibrary(); fit(); paintPictures();
+        const first = storiesOnScreen()[0];
+        NSS.Input.refresh(true, first ? 'library:' + first.id : 'library:sort');
     }
 
     // --- the story screen ---------------------------------------------------------------
@@ -778,7 +787,8 @@ NSS.UI = (function () {
         if (NSS.Story.isChoosing()) {
             return [
                 { id: 'end:again', el: el.againBtn, speak: 'Read Again', action: function () { NSS.Game.readAgain(); } },
-                { id: 'end:library', el: el.libraryBtn, speak: 'Pick a Different Story', action: function () { NSS.Game.toLibrary(); } }
+                { id: 'end:library', el: el.libraryBtn, speak: 'Pick a Different Story', action: function () { NSS.Game.toLibrary(); } },
+                { id: 'story:pause', el: el.pauseBtn, speak: 'Pause', action: function () { NSS.Game.pause(); } }
             ];
         }
         if (!scanMode()) return [];
@@ -932,6 +942,13 @@ NSS.UI = (function () {
     };
     const PAGE_ORDER = ['reading', 'look', 'switches', 'sound'];
 
+    function quickPageTurnNote() {
+        if (!S().is('readAloud', 'on')) return 'Read Aloud is off. Press to move on at your own pace.';
+        return S().is('quickPageTurn', 'on')
+            ? 'Press during reading to move ahead. Animations still play before the page turns.'
+            : 'Wait for reading to finish before moving on. This helps prevent accidental skips.';
+    }
+
     /**
      * One of this game's own settings. Enter moves it on to the next choice;
      * the choice's note (or `extra`) is said after.
@@ -988,8 +1005,8 @@ NSS.UI = (function () {
                 gameSetting('imageDescriptions', 'Image Descriptions'),
                 gameSetting('storyPrompts', 'Speak Story Prompts'),
                 gameSetting('rate', 'Reading Speed', () => 'This is how fast the computer voice reads.'),
-                { ...gameSetting('quickPageTurn', 'Quick Page Turn'),
-                    note: 'Press during reading to move ahead. Animations still play before the page turns.' },
+                { ...gameSetting('quickPageTurn', 'Quick Page Turn', quickPageTurnNote),
+                    note: quickPageTurnNote() },
                 backItem()
             ];
         }

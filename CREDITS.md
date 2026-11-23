@@ -13,3 +13,7 @@ Real Heroes contains adapted Let’s Read material under CC BY-NC 4.0. See the [
 Little Fox contains adapted Let’s Read material under CC BY-NC 4.0. See the [full attribution and adaptation notes](stories/little-fox/CREDITS.md) and the in-game title page. This content license is separate from the application code license.
 
 Cat and Dog Tea contains adapted Let’s Read material under CC BY-NC 4.0. See the [full attribution and adaptation notes](stories/cat-and-dog-tea/CREDITS.md) and the in-game title page. This content license is separate from the application code license.
+
+Alphabet Book contains adapted Pratham Books material, in the Let’s Read edition, under CC BY 4.0. See the [full attribution and adaptation notes](stories/abcd/CREDITS.md) and the in-game title page. This content license is separate from the application code license.
+
+Polaris the North Star contains adapted Asafeer material, in the Let’s Read edition, under CC BY-NC-SA 4.0; the adapted book is shared under the same license. See the [full attribution and adaptation notes](stories/polaris-the-north-star/CREDITS.md) and the in-game title page. This content license is separate from the application code license.

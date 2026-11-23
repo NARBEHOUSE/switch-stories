@@ -18,7 +18,7 @@ read('js/config.js');read('js/descriptions.js');read('js/braille-books.js');
 NSS.Descriptions.get=(id,i,simple,kind)=>rows.get(id+':'+i)?.[(simple?'simple':'book')+(kind==='after'?'Action':'Image')]||'';
 assert.match(NSS.Descriptions.get('little-fox',12,true,'after'),/large drawing of Turtle/,'identify the enlarged art as a drawing of Turtle');
 read('stories/list.js');
-for(const id of NSS.STORY_LIST){NSS.registerStory=def=>stories.push({...def,autoReadParts:true,id,pages:def.pages.map(p=>({...p,text:p.text||p.textParts.join(' ')}))});read('stories/'+id+'/story.js');}
+for(const id of NSS.STORY_LIST){NSS.registerStory=def=>{const story={...def,autoReadParts:true,id,pages:def.pages.map(p=>({...p,text:p.text||p.textParts.join(' ')}))};stories.push(story);return story;};read('stories/'+id+'/story.js');}
 read('js/story.js');
 assert.equal(rows.size,stories.reduce((n,s)=>n+s.pages.length,0));
 for(const s of stories) s.pages.forEach((p,i)=>{

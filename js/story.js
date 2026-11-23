@@ -162,7 +162,7 @@ NSS.Story = (function () {
         setState('reading');
         // Silent readers of a continuous book choose their own pace immediately.
         if (story.autoReadParts && !S().is('readAloud', 'on')) { afterReading(); return; }
-        NSS.Reader.read({ text: readingText() }, afterReading);
+        NSS.Reader.read({ text: readingText(), ...(page().speechSequence ? { speechSequence: page().speechSequence } : {}) }, afterReading);
     }
 
     function readDescription() {
@@ -294,7 +294,7 @@ NSS.Story = (function () {
                     ending = false;
                     setState('end');
                     NSS.Input.refresh(true);
-                    NSS.Input.announce('The End. Read again, or pick a different story.');
+                    NSS.Input.announce('The End. Read again, pick a different story, or pause.');
                 } else {
                     beginPage();
                 }
