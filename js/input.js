@@ -455,16 +455,18 @@ NSS.Input = (function () {
     }
 
     /**
-     * With Auto Scan and Auto park on, every story page starts parked: nothing moves
-     * while the page is read, and Enter starts the scan on the page button (Pause next).
-     * Silent, so "parked" never talks over the story; the status badge shows Parked.
+     * With Auto Scan and Parking on (Park when chosen or Auto park), every story page
+     * starts parked, like every menu: nothing moves while the page is read, and Enter
+     * starts the scan on the page button (Pause next). A page turn keeps the same scan
+     * context, so it is parked here. Silent, so "parked" never talks over the story;
+     * the status badge shows Parked.
      */
     let quietPark = false;
     function parkForPage() {
         if (!choice || !choice.active || freePlay() || NSS.Story.isChoosing()) return false;
         let settings;
         try { settings = SM().getSettings(); } catch (e) { return false; }
-        if (!settings.autoScan || settings.parking !== 'auto') return false;
+        if (!settings.autoScan || settings.parking === 'off') return false;
         quietPark = true;
         try { return choice.park(); } finally { quietPark = false; }
     }
