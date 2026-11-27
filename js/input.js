@@ -197,7 +197,7 @@ NSS.Input = (function () {
 
     function run(item) {
         if (!item || typeof item.action !== 'function') return;
-        if (item.id !== 'story:page') NSS.Sound.choose();
+        if (item.id !== 'story:page' && !item.quiet) NSS.Sound.choose();
         item.action(item);
     }
 
