@@ -206,6 +206,8 @@ NSS.Story = (function () {
         turnQueued = false;
         NSS.Scene.newPage();
         if (descriptionsOn()) describe('before'); else readCurrent();
+        // Auto park: the page starts parked, so the scan does not move while it is read.
+        NSS.Input.parkForPage();
     }
 
     function afterReading() {

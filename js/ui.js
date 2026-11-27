@@ -867,7 +867,8 @@ NSS.UI = (function () {
         list.push({ id: 'pages:cover', el: el.pageCover, speak: 'Cover', action: () => NSS.Story.goToPage(0) });
         list.push({ id: 'pages:back', el: el.pageBack, speak: 'Back to Pause', action: function () {
             show('pause');
-            NSS.Input.refresh(true, 'pause:1');
+            // Land back on Go to Page, wherever it sits in the pause list.
+            NSS.Input.refresh(true, 'pause:' + PAUSE_ITEMS.findIndex(function (m) { return m.label === 'Go to Page'; }));
         } });
         return list;
     }
@@ -884,6 +885,9 @@ NSS.UI = (function () {
         lines.push(scanMode()
             ? '*Read:* Choose the button below the picture. It tells you when to keep reading, play an animation, or turn the page.'
             : '*Read:* Press and release your switch, or tap the screen. Follow the button below the picture.');
+        let autoPark = false;
+        try { autoPark = auto && window.NarbeScanManager.getSettings().parking === 'auto'; } catch (e) { /* no scan manager */ }
+        if (autoPark && scanMode()) lines.push('*Auto park:* Each page starts parked, so nothing moves while it is read. Press *Enter* to start the scan.');
         lines.push('*Listen:* With *Read Aloud* on, the words continue automatically. Page turns wait for you.');
         if (S().is('quickPageTurn', 'on')) lines.push('*Quick Page Turn:* Press during speech to move ahead. Animations still finish.');
         if (S().is('imageDescriptions', 'on')) lines.push('*Picture descriptions:* Press after each description to continue.');

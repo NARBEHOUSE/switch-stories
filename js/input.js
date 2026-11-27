@@ -62,6 +62,7 @@ NSS.Input = (function () {
      * player. Menus (Pause, Settings) speak as usual.
      */
     function say(text) {
+        if (quietPark) return null;
         if (inStory() && (NSS.Story.isReading() || !NSS.Settings.is('readAloud', 'on'))) return null;
         if (NSS.UI.current() === 'library' && focused && focused.description && text === focused.speak) {
             return NSS.Voice.summary(text, focused.description);
@@ -453,6 +454,21 @@ NSS.Input = (function () {
         requestAnimationFrame(pollPads);
     }
 
+    /**
+     * With Auto Scan and Auto park on, every story page starts parked: nothing moves
+     * while the page is read, and Enter starts the scan on the page button (Pause next).
+     * Silent, so "parked" never talks over the story; the status badge shows Parked.
+     */
+    let quietPark = false;
+    function parkForPage() {
+        if (!choice || !choice.active || freePlay() || NSS.Story.isChoosing()) return false;
+        let settings;
+        try { settings = SM().getSettings(); } catch (e) { return false; }
+        if (!settings.autoScan || settings.parking !== 'auto') return false;
+        quietPark = true;
+        try { return choice.park(); } finally { quietPark = false; }
+    }
+
     /** Suspend all input (used while How to Play is read aloud). */
     function setEnabled(on) {
         enabled = !!on;
@@ -467,6 +483,7 @@ NSS.Input = (function () {
         paint: paint,
         announce: announce,
         setEnabled: setEnabled,
+        parkForPage: parkForPage,
         isFreePlay: freePlay,
         state: function () { return choice ? choice.getState() : null; }
     };

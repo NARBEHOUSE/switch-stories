@@ -34,6 +34,8 @@ NSS.Game = (function () {
     function resume() {
         NSS.UI.show('story');
         NSS.Story.resume();
+        // Back on the page from Pause: with Auto park, it starts parked like any page.
+        if (!NSS.Story.isChoosing()) NSS.Input.parkForPage();
     }
 
     function startOver() {
